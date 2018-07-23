@@ -21,7 +21,6 @@ class WebSocketReceiver : Thread {
         this.eventHandler = eventHandler
     }
 
-    @Throws(IllegalAccessException::class)
     override fun run() {
         while (!stop) {
             try {
@@ -54,11 +53,9 @@ class WebSocketReceiver : Thread {
                     }
                     CommonConst.OPCODE_PING.toByte() -> {
                         println(messageBytes.toString(Charset.defaultCharset()))
-                        eventHandler.onPing()
                     }
                     CommonConst.OPCODE_PONG.toByte() -> {
                         println(messageBytes.toString(Charset.defaultCharset()))
-                        eventHandler.onPong()
                     }
                     else ->
                         throw IllegalArgumentException("opCode[$opCode] invalid!")
