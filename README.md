@@ -11,8 +11,7 @@
     
         webSocket.setWebSocketEventHandler(object : WebSocketEventHandler {
             override fun onOpen() {
-                webSocket.send("")
-    
+                //定时器，发送心跳包
                 Timer("websocket_client").schedule(1 * 1000, 30 * 1000) {
                     webSocket.sendPong()
                 }
