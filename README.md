@@ -1,5 +1,5 @@
 ## kwebsocket
-使用kotlin实现Websocket协议，可用在客户端。使用方法见下方例子：
+使用kotlin实现Websocket协议，可用在java/android客户端。使用方法见下方例子：
 
     fun main(args: Array<String>) {
     
