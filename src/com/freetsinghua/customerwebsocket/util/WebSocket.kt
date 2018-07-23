@@ -23,13 +23,28 @@ import kotlin.experimental.xor
 class WebSocket {
     private var uri: URI
     private lateinit var eventHandler: WebSocketEventHandler
-    private lateinit var socket: Socket
+    private var socket: Socket? = null
     private lateinit var input: DataInputStream
     private lateinit var output: PrintStream
     private lateinit var receiver: WebSocketReceiver
     private var handShaking: WebSocketHandShaking
     @Volatile
     private var connected = false
+
+    /**
+     * 0x0表示附加数据帧
+     * 0x1表示文本数据帧
+     * 0x2表示二进制数据帧
+     * 0x3-7暂时无定义，为以后的非控制帧保留
+     * 0x8表示连接关闭
+     * 0x9表示ping
+     * 0xA表示pong
+     * 0xB-F暂时无定义，为以后的控制帧保留
+     */
+    val OPCODE_TEXT: Byte = 0x1
+    val OPCODE_CLOSE: Byte = 0x8
+    val OPCODE_PING: Byte = 0x9
+    val OPCODE_PONG: Byte = 0xA
 
     companion object {
         const val Version = 13
@@ -49,6 +64,31 @@ class WebSocket {
         return this.eventHandler
     }
 
+    /**
+     * 重新连接
+     */
+    @Throws(WebSocketException::class)
+    fun reConnect() {
+        try {
+
+            if (connected) {
+                throw WebSocketException("已经连接")
+            }
+
+            if (socket == null || socket!!.isClosed) {
+                socket = createSocket()
+            }
+            connecting()
+        } catch (e: WebSocketException) {
+            throw e
+        } catch (ex: IOException) {
+            throw WebSocketException("error when connecting: ${ex.message}")
+        }
+    }
+
+    /**
+     * 建立连接
+     */
     @Throws(WebSocketException::class)
     fun connect() {
         try {
@@ -57,54 +97,7 @@ class WebSocket {
             }
 
             socket = createSocket()
-            input = DataInputStream(socket.getInputStream())
-            output = PrintStream(socket.getOutputStream())
-
-            output.write(handShaking.handShaking())
-
-            var handShakingCompleted = false
-            val len = 2048
-            var byteArray = ArrayList<Byte>(len)
-            var pos = 0
-            val handShakingLines = ArrayList<String>()
-
-            while (!handShakingCompleted) {
-                byteArray.add(input.readByte())
-                ++pos
-
-                if (byteArray[pos - 1] == 0x0A.toByte() && byteArray[pos - 2] == 0x0D.toByte()) {
-                    val line = String(byteArray.toByteArray(), Charset.defaultCharset())
-                    if (line.trim().equals("")) {
-                        handShakingCompleted = true
-                    } else {
-                        handShakingLines.add(line.substring(0, line.length - 2))
-                    }
-
-                    byteArray.clear()
-                    pos = 0
-                }
-            }
-
-            handShakingLines.forEach {
-                println(it)
-            }
-
-            handShaking.verifyServerStatusLine(handShakingLines.get(0))
-            handShakingLines.removeAt(0)
-
-            val headers = LinkedHashMap<String, String>()
-
-            handShakingLines.forEach {
-                val split = it.split(delimiters = ":", ignoreCase = false, limit = 2)
-                headers.put(split[0], split[1])
-            }
-
-            handShaking.verifyServerHandshakeHeaders(headers)
-
-            receiver = WebSocketReceiver(this, input, eventHandler)
-            receiver.start()
-            connected = true
-            eventHandler.onOpen()
+            connecting()
         } catch (e: WebSocketException) {
             throw e
         } catch (ex: IOException) {
@@ -112,11 +105,66 @@ class WebSocket {
         }
     }
 
+    /**
+     * 执行连接
+     */
+    private fun connecting() {
+        input = DataInputStream(socket?.getInputStream())
+        output = PrintStream(socket?.getOutputStream())
+
+        output.write(handShaking.handShaking())
+
+        var handShakingCompleted = false
+        val len = 2048
+        val byteArray = ArrayList<Byte>(len)
+        var pos = 0
+        val handShakingLines = ArrayList<String>()
+
+        while (!handShakingCompleted) {
+            byteArray.add(input.readByte())
+            ++pos
+
+            if (byteArray[pos - 1] == 0x0A.toByte() && byteArray[pos - 2] == 0x0D.toByte()) {
+                val line = String(byteArray.toByteArray(), Charset.defaultCharset())
+                if (line.trim().equals("")) {
+                    handShakingCompleted = true
+                } else {
+                    handShakingLines.add(line.substring(0, line.length - 2))
+                }
+
+                byteArray.clear()
+                pos = 0
+            }
+        }
+
+        handShakingLines.forEach {
+            println(it)
+        }
+
+        handShaking.verifyServerStatusLine(handShakingLines.get(0))
+        handShakingLines.removeAt(0)
+
+        val headers = LinkedHashMap<String, String>()
+
+        handShakingLines.forEach {
+            val split = it.split(delimiters = ":", ignoreCase = false, limit = 2)
+            headers.put(split[0], split[1])
+        }
+
+        handShaking.verifyServerHandshakeHeaders(headers)
+
+        receiver = WebSocketReceiver(this, input, eventHandler)
+        receiver.start()
+        connected = true
+        eventHandler.onOpen()
+    }
+
 
     fun handleReceiverError() {
         try {
             if (connected) {
                 close()
+                connected = false
             }
         } catch (wse: WebSocketException) {
             wse.printStackTrace()
@@ -175,7 +223,7 @@ class WebSocket {
         try {
             input.close()
             output.close()
-            socket.close()
+            socket?.close()
         } catch (ioe: IOException) {
             throw WebSocketException("error while closing websocket connection: ${ioe.message}")
         }
@@ -266,20 +314,6 @@ class WebSocket {
         return masking
     }
 
-    /**
-     * 0x0表示附加数据帧
-     * 0x1表示文本数据帧
-     * 0x2表示二进制数据帧
-     * 0x3-7暂时无定义，为以后的非控制帧保留
-     * 0x8表示连接关闭
-     * 0x9表示ping
-     * 0xA表示pong
-     * 0xB-F暂时无定义，为以后的控制帧保留
-     */
-    val OPCODE_TEXT: Byte = 0x1
-    val OPCODE_CLOSE: Byte = 0x8
-    val OPCODE_PING: Byte = 0x9
-    val OPCODE_PONG: Byte = 0xA
 
     @Synchronized
     @Throws(WebSocketException::class)
@@ -290,7 +324,7 @@ class WebSocket {
 
         println("Sending close")
         if (!connected) {
-            throw WebSocketException("error while sending close")
+            throw WebSocketException("error while sending close: not connected")
         }
 
         try {
@@ -302,8 +336,8 @@ class WebSocket {
         connected = false
     }
 
+    @Throws(WebSocketException::class)
     private fun createSocket(): Socket {
-
         val scheme = uri.scheme
         val host = uri.host
         var port = uri.port
@@ -341,6 +375,4 @@ class WebSocket {
 
         return socket
     }
-
-
 }

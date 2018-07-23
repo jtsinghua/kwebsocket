@@ -3,6 +3,8 @@ package com.freetsinghua.customerwebsocket
 import com.freetsinghua.customerwebsocket.util.WebSocket
 import com.freetsinghua.customerwebsocket.util.WebSocketEventHandler
 import com.freetsinghua.customerwebsocket.util.WebSocketMessage
+import java.io.IOException
+import java.net.ConnectException
 import java.net.URI
 import java.nio.charset.Charset
 import java.util.*
@@ -45,6 +47,13 @@ fun main(args: Array<String>) {
 
         override fun onPong() {
 
+        }
+
+        override fun onError(exception: IOException) {
+            //若是连接异常，则重新连接
+            if (exception is ConnectException) {
+                webSocket.reConnect()
+            }
         }
     })
 
