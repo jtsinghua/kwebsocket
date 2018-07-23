@@ -1,6 +1,7 @@
 package com.freetsinghua.customerwebsocket.util
 
 import com.freetsinghua.customerwebsocket.common.CommonConst
+import org.slf4j.LoggerFactory
 import java.io.DataInputStream
 import java.nio.charset.Charset
 import kotlin.experimental.and
@@ -14,6 +15,7 @@ class WebSocketReceiver : Thread {
     private var input: DataInputStream
     private var eventHandler: WebSocketEventHandler
     private var stop = false
+    private val log = LoggerFactory.getLogger(WebSocketReceiver::class.java)
 
     constructor(webSocket: WebSocket, input: DataInputStream, eventHandler: WebSocketEventHandler) {
         this.webSocket = webSocket
@@ -25,7 +27,7 @@ class WebSocketReceiver : Thread {
         while (!stop) {
             try {
                 val b = input.readByte()
-                var opCode = b.and(0xf)
+                val opCode = b.and(0xf)
                 val length = input.readByte()
                 var payLoad = 0L
 
@@ -37,12 +39,13 @@ class WebSocketReceiver : Thread {
                     payLoad = input.readLong()
                 }
 
-                var messageBytes = ByteArray(payLoad.toInt())
+                val messageBytes = ByteArray(payLoad.toInt())
 
                 for (i in 0..payLoad - 1) {
                     messageBytes.set(i.toInt(), input.readByte())
                 }
 
+                val tmp = messageBytes.toString(Charset.defaultCharset())
                 when (opCode) {
                     CommonConst.OPCODE_TEXT_DATA.toByte() -> {
                         val message = WebSocketMessage(messageBytes)
@@ -52,10 +55,11 @@ class WebSocketReceiver : Thread {
                         webSocket.close()
                     }
                     CommonConst.OPCODE_PING.toByte() -> {
-                        println(messageBytes.toString(Charset.defaultCharset()))
+                        log.info(tmp)
                     }
                     CommonConst.OPCODE_PONG.toByte() -> {
                         println(messageBytes.toString(Charset.defaultCharset()))
+                        log.info(tmp)
                     }
                     else ->
                         throw IllegalArgumentException("opCode[$opCode] invalid!")

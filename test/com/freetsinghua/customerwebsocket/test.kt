@@ -24,13 +24,10 @@ fun main(args: Array<String>) {
 
     webSocket.setWebSocketEventHandler(object : WebSocketEventHandler {
         override fun onOpen() {
-            webSocket.send("")
-
-            Timer("websocket_client").schedule(1 * 1000, 30 * 1000) {
+            println("连接成功!@")
+            Timer("websocket_client").schedule(10 * 60 * 1000, 130 * 1000) {
                 webSocket.sendPong()
             }
-
-            println("connected,,,")
         }
 
         override fun onClose() {
@@ -51,7 +48,9 @@ fun main(args: Array<String>) {
 
         override fun onError(exception: IOException) {
             //若是连接异常，则重新连接
+            println("error: ${exception.message}")
             if (exception is ConnectException) {
+                println("重新连接")
                 webSocket.reConnect()
             }
         }

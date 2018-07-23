@@ -1,5 +1,6 @@
 package com.freetsinghua.customerwebsocket.util
 
+import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.IOException
@@ -30,6 +31,8 @@ class WebSocket {
     private var handShaking: WebSocketHandShaking
     @Volatile
     private var connected = false
+
+    private val log = LoggerFactory.getLogger(WebSocket::class.java)
 
     /**
      * 0x0表示附加数据帧
@@ -82,6 +85,7 @@ class WebSocket {
         } catch (e: WebSocketException) {
             throw e
         } catch (ex: IOException) {
+            log.info("${ex.message}")
             throw WebSocketException("error when connecting: ${ex.message}")
         }
     }
@@ -101,6 +105,7 @@ class WebSocket {
         } catch (e: WebSocketException) {
             throw e
         } catch (ex: IOException) {
+            log.info("${ex.message}")
             throw WebSocketException("error when connecting: ${ex.message}")
         }
     }
@@ -138,7 +143,7 @@ class WebSocket {
         }
 
         handShakingLines.forEach {
-            println(it)
+            log.info(it)
         }
 
         handShaking.verifyServerStatusLine(handShakingLines.get(0))
@@ -167,7 +172,7 @@ class WebSocket {
                 connected = false
             }
         } catch (wse: WebSocketException) {
-            wse.printStackTrace()
+            log.info(wse.message)
         }
 
     }
@@ -322,7 +327,7 @@ class WebSocket {
             throw WebSocketException("error while sending close handshake: not connected")
         }
 
-        println("Sending close")
+        log.info("Sending closed")
         if (!connected) {
             throw WebSocketException("error while sending close: not connected")
         }
@@ -331,6 +336,7 @@ class WebSocket {
             this.sendFrame(OPCODE_CLOSE, true, ByteArray(0))
         } catch (e: IOException) {
             e.printStackTrace()
+            log.error("error: ${e.message}")
         }
 
         connected = false
